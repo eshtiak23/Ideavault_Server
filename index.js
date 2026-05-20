@@ -27,33 +27,21 @@ async function run() {
 
     const database = client.db("ideaVaultDB");
     const ideasCollection = database.collection("ideas");
+    const commentsCollection = database.collection("comments");
 
     app.get("/ideas", async (req, res) => {
-      const result = await ideasCollection
-        .find()
-        .sort({ createdAt: -1 })
-        .toArray();
-
+      const result = await ideasCollection.find().sort({ createdAt: -1 }).toArray();
       res.send(result);
     });
 
     app.get("/ideas/:id", async (req, res) => {
       const id = req.params.id;
-
-      const result = await ideasCollection.findOne({
-        _id: new ObjectId(id),
-      });
-
+      const result = await ideasCollection.findOne({ _id: new ObjectId(id) });
       res.send(result);
     });
 
     app.get("/trending-ideas", async (req, res) => {
-      const result = await ideasCollection
-        .find()
-        .sort({ createdAt: -1 })
-        .limit(6)
-        .toArray();
-
+      const result = await ideasCollection.find().sort({ createdAt: -1 }).limit(6).toArray();
       res.send(result);
     });
 
@@ -62,6 +50,25 @@ async function run() {
       idea.createdAt = new Date();
 
       const result = await ideasCollection.insertOne(idea);
+      res.send(result);
+    });
+
+    app.post("/comments", async (req, res) => {
+      const comment = req.body;
+      comment.createdAt = new Date();
+
+      const result = await commentsCollection.insertOne(comment);
+      res.send(result);
+    });
+
+    app.get("/comments/:ideaId", async (req, res) => {
+      const ideaId = req.params.ideaId;
+
+      const result = await commentsCollection
+        .find({ ideaId: ideaId })
+        .sort({ createdAt: -1 })
+        .toArray();
+
       res.send(result);
     });
 
