@@ -8,12 +8,28 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const app = express();
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://ideavault-client-nine.vercel.app",
+  "https://ideavault-client-vn37eeeup-eshtiak23s-projects.vercel.app",
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://ideavault-client-nine.vercel.app/",
-    ],
+    origin: function (origin, callback) {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith(".vercel.app")
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
