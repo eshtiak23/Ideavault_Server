@@ -8,28 +8,9 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const app = express();
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://ideavault-client-nine.vercel.app",
-  "https://ideavault-client-vn37eeeup-eshtiak23s-projects.vercel.app",
-];
-
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (
-        allowedOrigins.includes(origin) ||
-        origin.endsWith(".vercel.app")
-      ) {
-        return callback(null, true);
-      }
-
-      return callback(new Error("Not allowed by CORS"));
-    },
+    origin: true,
     credentials: true,
   })
 );
@@ -51,6 +32,10 @@ let ideasCollection;
 let commentsCollection;
 
 async function connectDB() {
+  if (!uri) {
+    throw new Error("MONGO_URI is missing");
+  }
+
   if (!ideasCollection || !commentsCollection) {
     await client.connect();
 
@@ -62,11 +47,11 @@ async function connectDB() {
   }
 }
 
-app.get("/", async (req, res) => {
+app.get("/", (req, res) => {
   res.send("IdeaVault server is running");
 });
 
-app.post("/jwt", async (req, res) => {
+app.post("/jwt", (req, res) => {
   const user = req.body;
 
   const token = jwt.sign(
@@ -78,179 +63,223 @@ app.post("/jwt", async (req, res) => {
   res
     .cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: true,
+      sameSite: "none",
     })
     .send({ success: true });
 });
 
 app.get("/ideas", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const result = await ideasCollection
-    .find()
-    .sort({ createdAt: -1 })
-    .toArray();
+    const result = await ideasCollection
+      .find()
+      .sort({ createdAt: -1 })
+      .toArray();
 
-  res.send(result);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to load ideas", error: error.message });
+  }
 });
 
 app.get("/trending-ideas", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const result = await ideasCollection
-    .find()
-    .sort({ createdAt: -1 })
-    .limit(6)
-    .toArray();
+    const result = await ideasCollection
+      .find()
+      .sort({ createdAt: -1 })
+      .limit(6)
+      .toArray();
 
-  res.send(result);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to load trending ideas", error: error.message });
+  }
 });
 
 app.get("/my-ideas", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const email = req.query.email;
+    const email = req.query.email;
 
-  const result = await ideasCollection
-    .find({ userEmail: email })
-    .sort({ createdAt: -1 })
-    .toArray();
+    const result = await ideasCollection
+      .find({ userEmail: email })
+      .sort({ createdAt: -1 })
+      .toArray();
 
-  res.send(result);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to load my ideas", error: error.message });
+  }
 });
 
 app.get("/my-interactions", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const email = req.query.email;
+    const email = req.query.email;
 
-  const result = await commentsCollection
-    .find({ userEmail: email })
-    .sort({ createdAt: -1 })
-    .toArray();
+    const result = await commentsCollection
+      .find({ userEmail: email })
+      .sort({ createdAt: -1 })
+      .toArray();
 
-  res.send(result);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to load interactions", error: error.message });
+  }
 });
 
 app.get("/ideas/:id", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const id = req.params.id;
+    const id = req.params.id;
 
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).send({ message: "Invalid idea id" });
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid idea id" });
+    }
+
+    const result = await ideasCollection.findOne({ _id: new ObjectId(id) });
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to load idea", error: error.message });
   }
-
-  const result = await ideasCollection.findOne({
-    _id: new ObjectId(id),
-  });
-
-  res.send(result);
 });
 
 app.post("/ideas", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const idea = req.body;
-  idea.createdAt = new Date();
+    const idea = req.body;
+    idea.createdAt = new Date();
 
-  const result = await ideasCollection.insertOne(idea);
-  res.send(result);
+    const result = await ideasCollection.insertOne(idea);
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to add idea", error: error.message });
+  }
 });
 
 app.put("/ideas/:id", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const id = req.params.id;
+    const id = req.params.id;
 
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).send({ message: "Invalid idea id" });
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid idea id" });
+    }
+
+    const result = await ideasCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: req.body }
+    );
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to update idea", error: error.message });
   }
-
-  const result = await ideasCollection.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: req.body }
-  );
-
-  res.send(result);
 });
 
 app.delete("/ideas/:id", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const id = req.params.id;
+    const id = req.params.id;
 
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).send({ message: "Invalid idea id" });
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid idea id" });
+    }
+
+    const result = await ideasCollection.deleteOne({ _id: new ObjectId(id) });
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to delete idea", error: error.message });
   }
-
-  const result = await ideasCollection.deleteOne({
-    _id: new ObjectId(id),
-  });
-
-  res.send(result);
 });
 
 app.post("/comments", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const comment = req.body;
-  comment.createdAt = new Date();
+    const comment = req.body;
+    comment.createdAt = new Date();
 
-  const result = await commentsCollection.insertOne(comment);
-  res.send(result);
+    const result = await commentsCollection.insertOne(comment);
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to add comment", error: error.message });
+  }
 });
 
 app.get("/comments/:ideaId", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const ideaId = req.params.ideaId;
+    const ideaId = req.params.ideaId;
 
-  const result = await commentsCollection
-    .find({ ideaId })
-    .sort({ createdAt: -1 })
-    .toArray();
+    const result = await commentsCollection
+      .find({ ideaId })
+      .sort({ createdAt: -1 })
+      .toArray();
 
-  res.send(result);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to load comments", error: error.message });
+  }
 });
 
 app.put("/comments/:id", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const id = req.params.id;
+    const id = req.params.id;
 
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).send({ message: "Invalid comment id" });
-  }
-
-  const result = await commentsCollection.updateOne(
-    { _id: new ObjectId(id) },
-    {
-      $set: {
-        commentText: req.body.commentText,
-        updatedAt: new Date(),
-      },
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid comment id" });
     }
-  );
 
-  res.send(result);
+    const result = await commentsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          commentText: req.body.commentText,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to update comment", error: error.message });
+  }
 });
 
 app.delete("/comments/:id", async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const id = req.params.id;
+    const id = req.params.id;
 
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).send({ message: "Invalid comment id" });
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid comment id" });
+    }
+
+    const result = await commentsCollection.deleteOne({ _id: new ObjectId(id) });
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to delete comment", error: error.message });
   }
-
-  const result = await commentsCollection.deleteOne({
-    _id: new ObjectId(id),
-  });
-
-  res.send(result);
 });
 
 module.exports = app;
